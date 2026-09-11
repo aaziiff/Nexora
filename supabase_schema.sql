@@ -99,19 +99,30 @@ alter table site_settings enable row level security;
 
 -- Drop existing policies if re-running
 drop policy if exists "Public can read categories" on categories;
+
 drop policy if exists "Public can read products" on products;
-drop policy if exists "Public can read reviews" on reviews;
-drop policy if exists "Public can read site settings" on site_settings;
-drop policy if exists "Public can create orders" on orders;
-drop policy if exists "Public can read own order by number" on orders;
-drop policy if exists "Public can submit reviews" on reviews;
-drop policy if exists "Public can read orders" on orders;
+drop policy if exists "Public can insert products" on products;
+drop policy if exists "Public can update products" on products;
+drop policy if exists "Public can delete products" on products;
 drop policy if exists "Public can manage products" on products;
-drop policy if exists "Public can update orders" on orders;
+
+drop policy if exists "Public can read reviews" on reviews;
+drop policy if exists "Public can submit reviews" on reviews;
+
+drop policy if exists "Public can read site settings" on site_settings;
+drop policy if exists "Public can update site settings" on site_settings;
+drop policy if exists "Public can insert site settings" on site_settings;
 drop policy if exists "Public can update site_settings" on site_settings;
+
+drop policy if exists "Public can read orders" on orders;
+drop policy if exists "Public can create orders" on orders;
+drop policy if exists "Public can update orders" on orders;
+drop policy if exists "Public can delete orders" on orders;
+drop policy if exists "Public can read own order by number" on orders;
 
 -- Set up permissive policies with public and authenticated access
 create policy "Public can read categories" on categories for select using (true);
+
 create policy "Public can read products" on products for select using (true);
 create policy "Public can insert products" on products for insert with check (true);
 create policy "Public can update products" on products for update using (true);
