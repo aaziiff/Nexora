@@ -78,7 +78,17 @@ export const CustomerOrders: React.FC = () => {
 
     const handleUpdate = () => fetchOrders();
     window.addEventListener('nexora_orders_updated', handleUpdate);
-    return () => window.removeEventListener('nexora_orders_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') fetchOrders();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('nexora_orders_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   const handleCopyOrderNumber = async (orderNumber: string) => {

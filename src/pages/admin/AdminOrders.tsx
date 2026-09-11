@@ -28,7 +28,19 @@ export const AdminOrders: React.FC = () => {
   useEffect(() => {
     loadOrders();
     window.addEventListener('nexora_orders_updated', loadOrders);
-    return () => window.removeEventListener('nexora_orders_updated', loadOrders);
+    window.addEventListener('focus', loadOrders);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadOrders();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    const interval = setInterval(loadOrders, 6000);
+
+    return () => {
+      window.removeEventListener('nexora_orders_updated', loadOrders);
+      window.removeEventListener('focus', loadOrders);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
   }, []);
 
   const handleDeleteSingle = async () => {

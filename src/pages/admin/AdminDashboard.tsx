@@ -30,9 +30,19 @@ export const AdminDashboard: React.FC = () => {
     loadDashboardData();
     window.addEventListener('nexora_orders_updated', loadDashboardData);
     window.addEventListener('nexora_products_updated', loadDashboardData);
+    window.addEventListener('focus', loadDashboardData);
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') loadDashboardData();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    const interval = setInterval(loadDashboardData, 6000);
+
     return () => {
       window.removeEventListener('nexora_orders_updated', loadDashboardData);
       window.removeEventListener('nexora_products_updated', loadDashboardData);
+      window.removeEventListener('focus', loadDashboardData);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
     };
   }, []);
 

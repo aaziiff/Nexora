@@ -188,3 +188,36 @@ values (
   '[{"status": "ORDER PLACED", "timestamp": "2026-02-28T10:00:00Z", "note": "Order placed by customer via UPI"}, {"status": "CONFIRMED", "timestamp": "2026-02-28T14:30:00Z", "note": "UPI Payment verified by concierge"}, {"status": "PROCESSING", "timestamp": "2026-03-01T09:00:00Z", "note": "Packed in eco-friendly protective packaging"}]'::jsonb
 )
 on conflict (order_number) do nothing;
+
+-- 8. ENABLE SUPABASE REALTIME BROADCASTING
+-- Enables WebSocket push notifications so placing an order on a phone updates the Mac Admin live
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'orders'
+  ) then
+    alter publication supabase_realtime add table orders;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'products'
+  ) then
+    alter publication supabase_realtime add table products;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'reviews'
+  ) then
+    alter publication supabase_realtime add table reviews;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and tablename = 'site_settings'
+  ) then
+    alter publication supabase_realtime add table site_settings;
+  end if;
+end $$;
