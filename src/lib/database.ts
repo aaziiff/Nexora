@@ -294,7 +294,10 @@ export const db = {
     let savedOrder: Order = newOrder;
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data, error } = await supabase.from('orders').insert(newOrder).select().single();
+        const cleanPayload = Object.fromEntries(
+          Object.entries(newOrder).filter(([_, v]) => v !== undefined)
+        );
+        const { data, error } = await supabase.from('orders').insert(cleanPayload).select().single();
         if (!error && data) {
           savedOrder = data as Order;
         } else if (error) {
