@@ -119,6 +119,51 @@ export const AdminSettings: React.FC = () => {
 
             <div>
               <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
+                Merchant / Account Name
+              </label>
+              <input
+                type="text"
+                value={settings.upi_name || ''}
+                onChange={(e) => setSettings({ ...settings, upi_name: e.target.value })}
+                placeholder="e.g. ASIF MUHAMMED"
+                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
+                UPI QR Code Scanner Image (URL or /path)
+              </label>
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <div className="flex-1 w-full">
+                  <input
+                    type="text"
+                    value={settings.upi_qr_image || ''}
+                    onChange={(e) => setSettings({ ...settings, upi_qr_image: e.target.value })}
+                    placeholder="/upi-qr-code.jpg"
+                    className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 font-mono"
+                  />
+                  <p className="text-[10px] text-charcoal-500 mt-1">
+                    Customers will see this QR code scanner at checkout to pay directly via PhonePe, GPay, Paytm, etc.
+                  </p>
+                </div>
+                {(settings.upi_qr_image || '/upi-qr-code.jpg') && (
+                  <div className="p-1.5 bg-ivory-50 border border-stone/40 rounded-lg shadow-sm shrink-0">
+                    <img
+                      src={settings.upi_qr_image || '/upi-qr-code.jpg'}
+                      alt="UPI QR Scanner Preview"
+                      className="w-16 h-16 object-contain rounded"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
                 Concierge Support Email
               </label>
               <input

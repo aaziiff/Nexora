@@ -117,6 +117,7 @@ export interface SiteSettings {
   free_shipping_threshold: number;
   upi_id: string;
   upi_name: string;
+  upi_qr_image?: string;
   support_phone: string;
   support_email: string;
   instagram_handle: string;

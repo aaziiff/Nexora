@@ -440,6 +440,7 @@ export const DEFAULT_SITE_SETTINGS: SiteSettings = {
   free_shipping_threshold: 0,
   upi_id: 'nexora@upi',
   upi_name: 'NEXORA LIFESTYLE',
+  upi_qr_image: '/upi-qr-code.jpg',
   support_phone: '+91 98765 43210',
   support_email: 'concierge@nexoralife.com',
   instagram_handle: '@nexora.official',

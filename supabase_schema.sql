@@ -84,6 +84,7 @@ create table if not exists site_settings (
   free_shipping_threshold numeric(10,2) default 0,
   upi_id text default 'nexora@upi',
   upi_name text default 'NEXORA LIFESTYLE',
+  upi_qr_image text default '/upi-qr-code.jpg',
   support_phone text default '+91 98765 43210',
   support_email text default 'concierge@nexoralife.com',
   instagram_handle text default '@nexora.official',

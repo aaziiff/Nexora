@@ -542,14 +542,14 @@ export const db = {
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('site_settings').select('*').eq('id', 1).single();
-        if (!error && data) return data as SiteSettings;
+        if (!error && data) return { ...DEFAULT_SITE_SETTINGS, ...data } as SiteSettings;
       } catch (e) {
         console.warn('Supabase getSettings failed', e);
       }
     }
     initializeLocalDb();
     const stored = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : DEFAULT_SITE_SETTINGS;
+    return stored ? { ...DEFAULT_SITE_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SITE_SETTINGS;
   },
 
   async saveSettings(settings: SiteSettings): Promise<SiteSettings> {
