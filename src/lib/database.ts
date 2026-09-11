@@ -89,13 +89,59 @@ function initializeLocalDb() {
 // Call on module load
 initializeLocalDb();
 
+// Cross-tab and realtime database listeners
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (e) => {
+    if (e.key === ORDERS_STORAGE_KEY) {
+      window.dispatchEvent(new Event('nexora_orders_updated'));
+    }
+    if (e.key === PRODUCTS_STORAGE_KEY) {
+      window.dispatchEvent(new Event('nexora_products_updated'));
+    }
+    if (e.key === REVIEWS_STORAGE_KEY) {
+      window.dispatchEvent(new Event('nexora_reviews_updated'));
+    }
+    if (e.key === SETTINGS_STORAGE_KEY) {
+      window.dispatchEvent(new Event('nexora_settings_updated'));
+    }
+  });
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      supabase
+        .channel('public_live_sync')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+          window.dispatchEvent(new Event('nexora_orders_updated'));
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+          window.dispatchEvent(new Event('nexora_products_updated'));
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' }, () => {
+          window.dispatchEvent(new Event('nexora_reviews_updated'));
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, () => {
+          window.dispatchEvent(new Event('nexora_settings_updated'));
+        })
+        .subscribe();
+    } catch (e) {
+      console.warn('Supabase realtime subscription skipped:', e);
+    }
+  }
+}
+
 export const db = {
   // PRODUCTS
   async getProducts(): Promise<Product[]> {
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-        if (!error && data && data.length > 0) return data as Product[];
+        if (!error && data) {
+          localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(data));
+          return data as Product[];
+        }
+        if (error) {
+          console.warn('Supabase getProducts returned an error, using local database:', error);
+        }
       } catch (e) {
         console.warn('Supabase fetch failed, falling back to local database', e);
       }
@@ -116,35 +162,45 @@ export const db = {
   },
 
   async saveProduct(product: Product): Promise<Product> {
+    let savedProduct = product;
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('products').upsert(product).select().single();
-        if (!error && data) return data as Product;
+        if (!error && data) {
+          savedProduct = data as Product;
+        } else if (error) {
+          console.error('Supabase saveProduct error:', error);
+        }
       } catch (e) {
         console.warn('Supabase saveProduct failed', e);
       }
     }
     const products = await this.getProducts();
-    const existingIndex = products.findIndex(p => p.id === product.id);
+    const existingIndex = products.findIndex(p => p.id === savedProduct.id);
     if (existingIndex >= 0) {
-      products[existingIndex] = { ...product, updated_at: new Date().toISOString() };
+      products[existingIndex] = { ...savedProduct, updated_at: new Date().toISOString() };
     } else {
-      products.unshift({ ...product, created_at: new Date().toISOString() });
+      products.unshift({ ...savedProduct, created_at: new Date().toISOString() });
     }
     localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
     window.dispatchEvent(new Event('nexora_products_updated'));
-    return product;
+    return savedProduct;
   },
 
   async deleteProduct(id: string): Promise<boolean> {
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('products').delete().eq('id', id);
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) {
+          console.error('Supabase deleteProduct error:', error);
+        }
       } catch (e) {
         console.warn('Supabase deleteProduct failed', e);
       }
     }
-    const products = await this.getProducts();
+    // Update local storage directly
+    const stored = localStorage.getItem(PRODUCTS_STORAGE_KEY);
+    const products: Product[] = stored ? JSON.parse(stored) : INITIAL_PRODUCTS;
     const filtered = products.filter(p => p.id !== id);
     localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(filtered));
     window.dispatchEvent(new Event('nexora_products_updated'));
@@ -235,20 +291,55 @@ export const db = {
       localStorage.setItem('nexora_customer_email', orderData.customer.email);
     }
 
+    let savedOrder: Order = newOrder;
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('orders').insert(newOrder).select().single();
-        if (!error && data) return data as Order;
+        if (!error && data) {
+          savedOrder = data as Order;
+        } else if (error) {
+          console.error('Supabase createOrder error:', error);
+        }
       } catch (e) {
         console.warn('Supabase createOrder failed, saving locally', e);
       }
     }
 
-    const orders = await this.getOrders();
-    orders.unshift(newOrder);
+    const stored = localStorage.getItem(ORDERS_STORAGE_KEY);
+    const orders: Order[] = stored ? JSON.parse(stored) : [];
+    orders.unshift(savedOrder);
     localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
+    // Deduct stock count for ordered products and broadcast update
+    try {
+      const allProducts = await this.getProducts();
+      for (const item of savedOrder.items) {
+        const productIndex = allProducts.findIndex(p => p.id === item.product_id);
+        if (productIndex >= 0) {
+          const currentProd = allProducts[productIndex];
+          const updatedStock = Math.max(0, currentProd.stock_count - item.quantity);
+          const updatedProd = {
+            ...currentProd,
+            stock_count: updatedStock,
+            in_stock: updatedStock > 0,
+          };
+          allProducts[productIndex] = updatedProd;
+          if (isSupabaseConfigured && supabase) {
+            await supabase.from('products').update({
+              stock_count: updatedStock,
+              in_stock: updatedStock > 0,
+            }).eq('id', currentProd.id);
+          }
+        }
+      }
+      localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(allProducts));
+      window.dispatchEvent(new Event('nexora_products_updated'));
+    } catch (e) {
+      console.warn('Failed to update product stock on order creation:', e);
+    }
+
     window.dispatchEvent(new Event('nexora_orders_updated'));
-    return newOrder;
+    return savedOrder;
   },
 
   async getCustomerOrders(query?: { phone?: string; email?: string }): Promise<Order[]> {

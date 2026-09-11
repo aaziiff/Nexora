@@ -1,9 +1,30 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowRight, ArrowDown } from 'lucide-react';
+import { Product } from '../../types';
+import { db } from '../../lib/database';
 
 export const HeroSection: React.FC = () => {
+  const [featuredProduct, setFeaturedProduct] = useState<Product | null>(null);
+
+  useEffect(() => {
+    const fetchHeroProduct = () => {
+      db.getProducts().then((products) => {
+        if (products.length > 0) {
+          const item = products.find((p) => p.is_featured || p.is_bestseller) || products[0];
+          setFeaturedProduct(item);
+        } else {
+          setFeaturedProduct(null);
+        }
+      });
+    };
+
+    fetchHeroProduct();
+    window.addEventListener('nexora_products_updated', fetchHeroProduct);
+    return () => window.removeEventListener('nexora_products_updated', fetchHeroProduct);
+  }, []);
+
   return (
     <section className="relative min-h-[90vh] lg:min-h-[94vh] flex flex-col justify-between pt-8 pb-12 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto overflow-hidden">
       {/* Top Tagline Pill */}
@@ -99,36 +120,38 @@ export const HeroSection: React.FC = () => {
           {/* Main Visual Frame */}
           <div className="relative aspect-[4/5] rounded-2xl overflow-hidden shadow-2xl bg-ivory-200 border border-stone/40">
             <img
-              src="https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?q=80&w=1200&auto=format&fit=crop"
-              alt="NEXORA lifestyle essentials"
+              src={featuredProduct?.images?.[0] || 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?q=80&w=1200&auto=format&fit=crop'}
+              alt={featuredProduct?.name || 'NEXORA lifestyle essentials'}
               className="w-full h-full object-cover object-center scale-105 hover:scale-100 transition-transform duration-1000 ease-out"
             />
             {/* Subtle Gradient Vignette */}
             <div className="absolute inset-0 bg-gradient-to-t from-charcoal-950/60 via-transparent to-transparent" />
 
             {/* Overlaid Editorial Feature Card */}
-            <div className="absolute bottom-6 left-6 right-6 p-4 rounded-xl bg-ivory-100/90 backdrop-blur-md border border-stone/40 text-charcoal-900 shadow-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="text-[9px] uppercase tracking-luxury font-semibold text-sage-800">
-                    Featured Routine Essential
-                  </span>
-                  <h3 className="font-serif text-lg font-medium text-charcoal-950">
-                    Diatomite Fast-Dry Stone Caddy
-                  </h3>
-                  <p className="text-[11px] text-charcoal-600 font-sans">
-                    Absorbs sink water droplets in 60 seconds
-                  </p>
+            {featuredProduct && (
+              <div className="absolute bottom-6 left-6 right-6 p-4 rounded-xl bg-ivory-100/90 backdrop-blur-md border border-stone/40 text-charcoal-900 shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="pr-3">
+                    <span className="text-[9px] uppercase tracking-luxury font-semibold text-sage-800">
+                      Featured Routine Essential
+                    </span>
+                    <h3 className="font-serif text-lg font-medium text-charcoal-950 line-clamp-1">
+                      {featuredProduct.name}
+                    </h3>
+                    <p className="text-[11px] text-charcoal-600 font-sans line-clamp-1">
+                      {featuredProduct.tagline}
+                    </p>
+                  </div>
+                  <Link
+                    to={`/product/${featuredProduct.slug}`}
+                    className="w-8 h-8 rounded-full bg-charcoal-900 text-ivory-100 flex items-center justify-center shrink-0 hover:bg-sage-800 transition-colors"
+                    aria-label={`View ${featuredProduct.name}`}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </Link>
                 </div>
-                <Link
-                  to="/product/diatomite-quick-dry-stone-tray"
-                  className="w-8 h-8 rounded-full bg-charcoal-900 text-ivory-100 flex items-center justify-center shrink-0 hover:bg-sage-800 transition-colors"
-                  aria-label="View featured stone caddy"
-                >
-                  <ArrowRight className="w-4 h-4" />
-                </Link>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Decorative Corner Offset Element */}

@@ -18,12 +18,22 @@ export const AdminDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const loadDashboardData = () => {
     Promise.all([db.getProducts(), db.getOrders()]).then(([pList, oList]) => {
       setProducts(pList);
       setOrders(oList);
       setLoading(false);
     });
+  };
+
+  useEffect(() => {
+    loadDashboardData();
+    window.addEventListener('nexora_orders_updated', loadDashboardData);
+    window.addEventListener('nexora_products_updated', loadDashboardData);
+    return () => {
+      window.removeEventListener('nexora_orders_updated', loadDashboardData);
+      window.removeEventListener('nexora_products_updated', loadDashboardData);
+    };
   }, []);
 
   const totalRevenue = orders

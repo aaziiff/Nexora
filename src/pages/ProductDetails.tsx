@@ -44,12 +44,7 @@ export const ProductDetails: React.FC = () => {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewLocation, setReviewLocation] = useState('');
 
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    setLoading(true);
-    setSelectedImageIndex(0);
-    setQuantity(1);
-
+  const loadProductData = () => {
     if (slug) {
       db.getProductBySlug(slug).then(async (found) => {
         if (found) {
@@ -66,6 +61,18 @@ export const ProductDetails: React.FC = () => {
         setLoading(false);
       });
     }
+  };
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setLoading(true);
+    setSelectedImageIndex(0);
+    setQuantity(1);
+
+    loadProductData();
+
+    window.addEventListener('nexora_products_updated', loadProductData);
+    return () => window.removeEventListener('nexora_products_updated', loadProductData);
   }, [slug]);
 
   if (loading) {
