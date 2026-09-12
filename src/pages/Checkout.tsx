@@ -65,7 +65,9 @@ export const Checkout: React.FC = () => {
   }
 
   const shippingFee = 0;
-  const grandTotal = subtotal;
+  const COD_HANDLING_FEE = 29;
+  const handlingFee = paymentMethod === 'COD' ? COD_HANDLING_FEE : 0;
+  const grandTotal = subtotal + shippingFee + handlingFee;
 
   const handleCopyUpi = async () => {
     await copyToClipboard(settings.upi_id);
@@ -117,6 +119,8 @@ export const Checkout: React.FC = () => {
         subtotal,
         shipping_fee: shippingFee,
         discount_amount: 0,
+        cod_fee: handlingFee,
+        handling_fee: handlingFee,
         total_amount: grandTotal,
         payment_method: paymentMethod,
         payment_status: 'pending',
@@ -287,16 +291,21 @@ export const Checkout: React.FC = () => {
                   className="mt-1 mr-3 text-charcoal-900 focus:ring-charcoal-900"
                 />
                 <div className="flex-1">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-1">
                     <span className="text-xs font-semibold uppercase tracking-luxury text-charcoal-950">
                       Direct UPI / GPay / PhonePe / Paytm
                     </span>
-                    <span className="text-[9px] bg-sage-800 text-ivory-100 px-2 py-0.5 rounded font-semibold uppercase">
-                      Recommended
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] bg-emerald-700 text-white px-2 py-0.5 rounded font-semibold uppercase tracking-wider">
+                        FREE (Save ₹29)
+                      </span>
+                      <span className="text-[9px] bg-sage-800 text-ivory-100 px-2 py-0.5 rounded font-semibold uppercase">
+                        Recommended
+                      </span>
+                    </div>
                   </div>
                   <p className="text-xs text-charcoal-600 font-sans mt-0.5">
-                    Instant transfer with zero convenience surcharges.
+                    Instant transfer with zero convenience or handling surcharges.
                   </p>
                 </div>
               </label>
@@ -318,11 +327,16 @@ export const Checkout: React.FC = () => {
                   className="mt-1 mr-3 text-charcoal-900 focus:ring-charcoal-900"
                 />
                 <div className="flex-1">
-                  <span className="text-xs font-semibold uppercase tracking-luxury text-charcoal-950">
-                    Cash on Delivery (COD)
-                  </span>
+                  <div className="flex items-center justify-between flex-wrap gap-1">
+                    <span className="text-xs font-semibold uppercase tracking-luxury text-charcoal-950">
+                      Cash on Delivery (COD)
+                    </span>
+                    <span className="text-[9px] bg-amber-200 text-amber-950 border border-amber-300 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                      +₹29 Handling Fee
+                    </span>
+                  </div>
                   <p className="text-xs text-charcoal-600 font-sans mt-0.5">
-                    Pay upon physical delivery to your doorstep.
+                    Pay upon physical delivery to your doorstep. Includes a nominal ₹29 handling fee.
                   </p>
                 </div>
               </label>
@@ -504,16 +518,31 @@ export const Checkout: React.FC = () => {
             <div className="pt-4 border-t border-stone/30 space-y-2 text-xs text-charcoal-700">
               <div className="flex justify-between">
                 <span>Subtotal</span>
-                <span className="font-medium text-charcoal-950">₹{subtotal.toLocaleString('en-IN')}</span>
+                <span className="font-medium text-charcoal-950 font-mono">₹{subtotal.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between">
                 <span>Express Courier Shipping</span>
                 <span className="font-semibold text-sage-800">FREE</span>
               </div>
+              <div className="flex justify-between items-center">
+                <span>
+                  {paymentMethod === 'COD' ? 'Cash on Delivery Handling Fee' : 'Payment Handling Fee'}
+                </span>
+                {paymentMethod === 'COD' ? (
+                  <span className="font-mono font-bold text-charcoal-950">+₹29</span>
+                ) : (
+                  <span className="font-semibold text-emerald-800">FREE (₹0)</span>
+                )}
+              </div>
             </div>
 
             <div className="pt-4 border-t border-stone/30 flex justify-between items-baseline">
-              <span className="font-serif text-lg text-charcoal-900">Total Payable</span>
+              <div>
+                <span className="font-serif text-lg text-charcoal-900 block">Total Payable</span>
+                {paymentMethod === 'COD' && (
+                  <span className="text-[10px] text-charcoal-500 font-sans">(Includes ₹29 COD fee)</span>
+                )}
+              </div>
               <span className="font-serif text-3xl font-semibold text-charcoal-950">
                 ₹{grandTotal.toLocaleString('en-IN')}
               </span>

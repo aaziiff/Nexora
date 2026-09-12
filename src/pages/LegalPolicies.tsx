@@ -119,13 +119,13 @@ export const LegalPolicies: React.FC = () => {
             <div>
               <h3 className="font-serif text-xl text-charcoal-900 font-normal">How does UPI payment verification work?</h3>
               <p>
-                When selecting UPI, you transfer the amount to our official ID <code>nexora@upi</code> and paste the 12-digit UTR reference ID. Our concierge verifies this before marking the order as confirmed and preparing dispatch.
+                When selecting UPI, you transfer the amount to our official ID <code>nexora@upi</code> (or scan our instant QR code) and enter the 12-digit UTR transaction reference ID. Direct UPI payments have <strong>zero handling fees</strong>.
               </p>
             </div>
             <div>
               <h3 className="font-serif text-xl text-charcoal-900 font-normal">Can I order via Cash on Delivery?</h3>
               <p>
-                Yes, Cash on Delivery is supported across all major postal codes across India.
+                Yes, Cash on Delivery is supported across all serviceable postal codes across India. A nominal doorstep cash-handling charge of <strong>₹29</strong> is applied to Cash on Delivery orders.
               </p>
             </div>
           </div>

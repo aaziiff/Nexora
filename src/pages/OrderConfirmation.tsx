@@ -95,16 +95,19 @@ export const OrderConfirmation: React.FC = () => {
                   <span className="text-[10px] uppercase tracking-widest text-charcoal-400 block font-sans">
                     Total Amount
                   </span>
-                  <span className="font-semibold text-charcoal-900 text-sm">
+                  <span className="font-semibold text-charcoal-900 text-sm font-mono">
                     ₹{order.total_amount.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
                   <span className="text-[10px] uppercase tracking-widest text-charcoal-400 block font-sans">
-                    Payment
+                    Payment Method
                   </span>
-                  <span className="font-medium text-charcoal-900">
-                    {order.payment_method} ({order.payment_status})
+                  <span className="font-medium text-charcoal-900 block">
+                    {order.payment_method === 'COD' ? 'Cash on Delivery' : 'Direct UPI'}
+                  </span>
+                  <span className="text-[10px] text-charcoal-500 font-sans block">
+                    {order.payment_method === 'COD' ? '(Includes ₹29 COD fee)' : '(Zero handling fee)'}
                   </span>
                 </div>
               </div>

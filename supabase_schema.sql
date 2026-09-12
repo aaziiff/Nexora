@@ -52,6 +52,7 @@ create table if not exists orders (
   subtotal numeric(10,2) not null,
   shipping_fee numeric(10,2) default 0,
   discount_amount numeric(10,2) default 0,
+  cod_fee numeric(10,2) default 0,
   total_amount numeric(10,2) not null,
   payment_method text check (payment_method in ('COD', 'UPI')) not null,
   payment_status text check (payment_status in ('pending', 'verified', 'failed')) default 'pending',

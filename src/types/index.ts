@@ -136,6 +136,8 @@ export interface Order {
   subtotal: number;
   shipping_fee: number;
   discount_amount: number;
+  cod_fee?: number;
+  handling_fee?: number;
   total_amount: number;
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;

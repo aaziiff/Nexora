@@ -753,9 +753,15 @@ export const AdminOrderDetail: React.FC = () => {
                 <span className="font-mono">₹{order.subtotal.toLocaleString('en-IN')}</span>
               </div>
               <div className="flex justify-between">
-                <span>Shipping Fee</span>
+                <span>Express Courier Shipping</span>
                 <span className="text-sage-800 font-semibold">{order.shipping_fee === 0 ? 'FREE' : `₹${order.shipping_fee}`}</span>
               </div>
+              {(order.cod_fee !== undefined ? order.cod_fee > 0 : order.payment_method === 'COD') && (
+                <div className="flex justify-between text-charcoal-800">
+                  <span>COD Handling Fee</span>
+                  <span className="font-mono font-medium text-charcoal-950">+₹{order.cod_fee || 29}</span>
+                </div>
+              )}
               <div className="flex justify-between text-sm font-semibold text-charcoal-950 pt-2 border-t border-stone/20 font-mono">
                 <span>Total Amount</span>
                 <span>₹{order.total_amount.toLocaleString('en-IN')}</span>
