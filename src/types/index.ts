@@ -59,6 +59,12 @@ export type OrderStatus =
   | 'IN TRANSIT'
   | 'OUT FOR DELIVERY'
   | 'DELIVERED'
+  | 'RETURN_REQUESTED'
+  | 'RETURN_APPROVED'
+  | 'RETURN_REJECTED'
+  | 'RETURN_PICKED_UP'
+  | 'REFUNDED'
+  | 'REPLACED'
   | 'CANCELLED';
 
 export type PaymentMethod = 'COD' | 'UPI';
@@ -78,6 +84,50 @@ export interface OrderItem {
   image: string;
 }
 
+export type ReturnType = 'replacement' | 'refund' | 'REPLACEMENT' | 'REFUND';
+
+export interface ReturnRequestItem {
+  product_id: string;
+  product_name: string;
+  quantity: number;
+  price: number;
+  image?: string;
+}
+
+export interface ReturnBankDetails {
+  account_holder_name?: string;
+  account_number?: string;
+  ifsc_code?: string;
+  bank_name?: string;
+}
+
+export interface ReturnRequest {
+  id?: string;
+  request_id?: string;
+  return_type: ReturnType;
+  reason: string;
+  custom_reason?: string;
+  items: ReturnRequestItem[];
+  refund_method?: 'UPI' | 'BANK_TRANSFER';
+  refund_upi_id?: string;
+  refund_bank_details?: ReturnBankDetails;
+  comments?: string;
+  image_url?: string;
+  images?: string[];
+  status?: 'REQUESTED' | 'APPROVED' | 'REJECTED' | 'PICKED_UP' | 'REFUNDED' | 'REPLACED';
+  requested_at: string;
+  admin_decision_at?: string;
+  admin_notes?: string;
+  rejection_reason?: string;
+  refund_transaction_id?: string;
+  replacement_courier?: string;
+  replacement_tracking?: string;
+  pickup_date?: string;
+  pickup_scheduled_date?: string;
+  pickup_courier?: string;
+  pickup_tracking_number?: string;
+}
+
 export interface Order {
   id: string;
   order_number: string;
@@ -95,6 +145,8 @@ export interface Order {
   tracking_number?: string;
   tracking_url?: string;
   estimated_delivery?: string;
+  delivered_at?: string;
+  return_request?: ReturnRequest;
   status_history: OrderStatusHistoryItem[];
   created_at: string;
 }

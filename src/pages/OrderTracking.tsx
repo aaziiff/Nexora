@@ -11,6 +11,7 @@ import {
   MapPin,
   AlertCircle,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import { Order, OrderStatus } from '../types';
 import { db } from '../lib/database';
@@ -255,6 +256,48 @@ export const OrderTracking: React.FC = () => {
                 })}
               </div>
             </div>
+
+            {/* Return / Replacement Status Progress Card if Active */}
+            {foundOrder.return_request && (
+              <div className="p-5 bg-amber-50/80 rounded-xl border border-amber-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b border-amber-200/60">
+                  <div className="flex items-center gap-2">
+                    <RotateCcw className="w-4 h-4 text-amber-800" />
+                    <h4 className="font-serif text-lg font-medium text-charcoal-950">
+                      {foundOrder.return_request.return_type === 'replacement' ? 'Replacement in Progress' : 'Refund in Progress'}
+                    </h4>
+                  </div>
+                  <span className="text-xs uppercase font-bold tracking-wider text-amber-900 bg-amber-200/70 px-2.5 py-1 rounded-full border border-amber-300">
+                    {foundOrder.order_status}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-charcoal-700">
+                  <div>
+                    <span className="text-[10px] text-charcoal-500 uppercase tracking-wider block">Return Reason</span>
+                    <strong className="text-charcoal-900">{foundOrder.return_request.reason}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-charcoal-500 uppercase tracking-wider block">Resolution</span>
+                    <strong className="text-charcoal-900">
+                      {foundOrder.return_request.return_type === 'replacement' ? 'Free Replacement' : `Direct Refund (${foundOrder.return_request.refund_method || 'UPI'})`}
+                    </strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-charcoal-500 uppercase tracking-wider block">Doorstep Pickup</span>
+                    <strong className="text-charcoal-900">
+                      {foundOrder.return_request.pickup_date ? `${foundOrder.return_request.pickup_date} (${foundOrder.return_request.pickup_courier || 'Assigned Courier'})` : 'Scheduling with Logistics...'}
+                    </strong>
+                  </div>
+                </div>
+
+                {foundOrder.return_request.admin_notes && (
+                  <p className="text-xs text-charcoal-600 italic bg-ivory-50 p-2.5 rounded border border-stone/20">
+                    Concierge Update: {foundOrder.return_request.admin_notes}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Courier Tracking Action Link if present */}
             {foundOrder.tracking_url && (

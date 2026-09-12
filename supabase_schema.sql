@@ -61,6 +61,8 @@ create table if not exists orders (
   tracking_number text,
   tracking_url text,
   estimated_delivery text,
+  delivered_at timestamp with time zone,
+  return_request jsonb,
   status_history jsonb default '[]'::jsonb,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );

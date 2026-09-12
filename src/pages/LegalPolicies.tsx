@@ -59,13 +59,25 @@ export const LegalPolicies: React.FC = () => {
 
         {path.includes('refund') && (
           <>
-            <h3 className="font-serif text-xl text-charcoal-900 font-normal">1. 7-Day Replacement Guarantee</h3>
+            <h3 className="font-serif text-xl text-charcoal-900 font-normal">1. Strict 7-Day Return & Replacement Window</h3>
             <p>
-              If your product arrives damaged in transit or defective, notify our concierge within 7 calendar days of delivery with an unboxing photo or video. We will promptly dispatch a replacement at zero extra cost.
+              Nexora offers an automated <strong>7-Day Return & Replacement Guarantee</strong> on all orders. The return window starts on the day your order is marked as <code>DELIVERED</code> (Day 1) and remains valid for exactly 7 consecutive days (through Day 7). Once this 7-day window concludes, return and replacement requests are automatically closed and cannot be accepted.
             </p>
-            <h3 className="font-serif text-xl text-charcoal-900 font-normal">2. Cancellation Policy</h3>
+            <h3 className="font-serif text-xl text-charcoal-900 font-normal">2. Resolution Options: Free Replacement or Direct Refund</h3>
             <p>
-              Orders may be cancelled free of charge prior to fulfillment. Once an order has been handed over to courier logistics, it cannot be cancelled mid-transit.
+              When requesting a return within the eligible 7-day window from your <Link to="/orders" className="underline text-sage-800">My Orders</Link> dashboard, you may select:
+              <br />
+              • <strong>Free Replacement:</strong> A brand-new replacement unit will be prepared and dispatched with expedited delivery after reverse inspection.
+              <br />
+              • <strong>Direct Refund:</strong> Settle the refunded amount directly to your chosen UPI Virtual Payment Address (VPA) or Indian Bank Account (NEFT/IMPS).
+            </p>
+            <h3 className="font-serif text-xl text-charcoal-900 font-normal">3. Doorstep Reverse Pickup & Inspection</h3>
+            <p>
+              Once your return request is approved by our concierge, our courier partner will coordinate a convenient doorstep pickup from your registered address. Items must include original packaging, protective covers, and all included accessories.
+            </p>
+            <h3 className="font-serif text-xl text-charcoal-900 font-normal">4. Order Cancellation Policy</h3>
+            <p>
+              Orders may be cancelled free of charge prior to fulfillment. Once an order has been handed over to courier logistics and dispatched, it cannot be cancelled mid-transit.
             </p>
           </>
         )}

@@ -86,18 +86,37 @@ export const AdminOrders: React.FC = () => {
     }
   };
 
+  const deliveredCount = orders.filter((o) => o.order_status === 'DELIVERED').length;
+  const returnOrdersCount = orders.filter((o) =>
+    o.order_status.startsWith('RETURN') ||
+    o.order_status === 'REFUNDED' ||
+    o.order_status === 'REPLACED' ||
+    Boolean(o.return_request)
+  ).length;
+
   const filteredOrders = orders.filter((o) => {
     if (selectedFilter === 'ALL') return true;
     if (selectedFilter === 'PENDING_UPI') {
       return o.payment_method === 'UPI' && o.payment_status === 'pending';
     }
+    if (selectedFilter === 'RETURNS') {
+      return (
+        o.order_status.startsWith('RETURN') ||
+        o.order_status === 'REFUNDED' ||
+        o.order_status === 'REPLACED' ||
+        Boolean(o.return_request)
+      );
+    }
     return o.order_status === selectedFilter;
   });
 
-  const deliveredCount = orders.filter((o) => o.order_status === 'DELIVERED').length;
-
   const filterTabs = [
     { label: 'All Orders', value: 'ALL', count: orders.length },
+    {
+      label: 'Returns & Refunds',
+      value: 'RETURNS',
+      count: returnOrdersCount,
+    },
     {
       label: 'Pending UPI Checks',
       value: 'PENDING_UPI',
@@ -235,17 +254,36 @@ export const AdminOrders: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <span
-                        className={`inline-block text-[10px] uppercase font-semibold tracking-wider px-2.5 py-0.5 rounded ${
-                          ord.order_status === 'DELIVERED'
-                            ? 'bg-sage-800 text-ivory-100'
-                            : ord.order_status === 'CANCELLED'
-                            ? 'bg-rose-100 text-rose-800'
-                            : 'bg-stone/30 text-charcoal-800'
-                        }`}
-                      >
-                        {ord.order_status}
-                      </span>
+                      <div className="flex flex-col gap-1 items-start">
+                        <span
+                          className={`inline-block text-[10px] uppercase font-semibold tracking-wider px-2.5 py-0.5 rounded ${
+                            ord.order_status === 'DELIVERED'
+                              ? 'bg-sage-800 text-ivory-100'
+                              : ord.order_status === 'CANCELLED'
+                              ? 'bg-rose-100 text-rose-800'
+                              : ord.order_status === 'RETURN_REQUESTED'
+                              ? 'bg-amber-100 text-amber-900 border border-amber-300 font-bold animate-pulse'
+                              : ord.order_status === 'RETURN_APPROVED'
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                              : ord.order_status === 'RETURN_PICKED_UP'
+                              ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                              : ord.order_status === 'REFUNDED'
+                              ? 'bg-teal-100 text-teal-900 border border-teal-300 font-bold'
+                              : ord.order_status === 'REPLACED'
+                              ? 'bg-blue-100 text-blue-900 border border-blue-300 font-bold'
+                              : ord.order_status === 'RETURN_REJECTED'
+                              ? 'bg-stone-200 text-stone-700 line-through'
+                              : 'bg-stone/30 text-charcoal-800'
+                          }`}
+                        >
+                          {ord.order_status.replace(/_/g, ' ')}
+                        </span>
+                        {ord.return_request && !ord.order_status.startsWith('RETURN') && ord.order_status !== 'REFUNDED' && ord.order_status !== 'REPLACED' && (
+                          <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                            Return: {ord.return_request.status}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="py-3.5 px-4 text-right">

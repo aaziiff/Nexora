@@ -1,6 +1,130 @@
-import { Product, CategoryInfo, Order, Review, SiteSettings, OrderStatus } from '../types';
+import { Product, CategoryInfo, Order, Review, SiteSettings, OrderStatus, ReturnRequest, ReturnType } from '../types';
 import { CATEGORIES, INITIAL_PRODUCTS, INITIAL_REVIEWS, DEFAULT_SITE_SETTINGS } from '../data/products';
 import { supabase, isSupabaseConfigured } from './supabase';
+
+export interface ReturnEligibility {
+  isEligible: boolean;
+  eligible?: boolean;
+  deliveryDate: Date | null;
+  deliveredDate?: Date | null;
+  expiryDate: Date | null;
+  daysLeft: number;
+  message: string;
+  hasExistingReturn: boolean;
+  statusText?: string;
+  isDelivered?: boolean;
+}
+
+export function getReturnEligibility(order: Order): ReturnEligibility {
+  // Check if return has already been initiated
+  const returnStatuses: OrderStatus[] = [
+    'RETURN_REQUESTED',
+    'RETURN_APPROVED',
+    'RETURN_REJECTED',
+    'RETURN_PICKED_UP',
+    'REFUNDED',
+    'REPLACED',
+  ];
+
+  if (returnStatuses.includes(order.order_status) || order.return_request) {
+    let statusText = 'Return in progress';
+    if (order.order_status === 'RETURN_REQUESTED') statusText = 'Return Requested — Under Review';
+    if (order.order_status === 'RETURN_APPROVED') statusText = 'Return Approved — Pickup Scheduled';
+    if (order.order_status === 'RETURN_REJECTED') statusText = 'Return Request Declined';
+    if (order.order_status === 'RETURN_PICKED_UP') statusText = 'Item Picked Up — In Inspection';
+    if (order.order_status === 'REFUNDED') statusText = 'Refund Completed';
+    if (order.order_status === 'REPLACED') statusText = 'Replacement Dispatched';
+
+    const dDate = order.delivered_at ? new Date(order.delivered_at) : null;
+    return {
+      isEligible: false,
+      eligible: false,
+      deliveryDate: dDate,
+      deliveredDate: dDate,
+      expiryDate: null,
+      daysLeft: 0,
+      message: statusText,
+      hasExistingReturn: true,
+      statusText,
+      isDelivered: true,
+    };
+  }
+
+  // If not yet delivered, returns are not applicable
+  const wasDelivered =
+    order.order_status === 'DELIVERED' ||
+    Boolean(order.delivered_at) ||
+    order.status_history.some((h) => h.status === 'DELIVERED');
+
+  if (!wasDelivered) {
+    return {
+      isEligible: false,
+      eligible: false,
+      deliveryDate: null,
+      deliveredDate: null,
+      expiryDate: null,
+      daysLeft: 0,
+      message: 'Returns are available once the order is delivered.',
+      hasExistingReturn: false,
+      isDelivered: false,
+    };
+  }
+
+  // Determine delivery date
+  let deliveryTimestamp: Date;
+  if (order.delivered_at) {
+    deliveryTimestamp = new Date(order.delivered_at);
+  } else {
+    const deliveredHistory = order.status_history.find((h) => h.status === 'DELIVERED');
+    if (deliveredHistory?.timestamp) {
+      deliveryTimestamp = new Date(deliveredHistory.timestamp);
+    } else {
+      deliveryTimestamp = new Date(order.created_at);
+    }
+  }
+
+  // Calculate 7 days cutoff (Day 1 through Day 7 / 7 * 24 hours)
+  const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+  const expiryDate = new Date(deliveryTimestamp.getTime() + SEVEN_DAYS_MS);
+  const now = new Date();
+  const msRemaining = expiryDate.getTime() - now.getTime();
+
+  if (msRemaining <= 0) {
+    return {
+      isEligible: false,
+      eligible: false,
+      deliveryDate: deliveryTimestamp,
+      deliveredDate: deliveryTimestamp,
+      expiryDate,
+      daysLeft: 0,
+      message: `Return window closed on ${expiryDate.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })} (7-day policy ended)`,
+      hasExistingReturn: false,
+      isDelivered: true,
+    };
+  }
+
+  // Calculate days left (rounded up, 1 to 7)
+  const daysLeft = Math.max(1, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+
+  return {
+    isEligible: true,
+    eligible: true,
+    deliveryDate: deliveryTimestamp,
+    deliveredDate: deliveryTimestamp,
+    expiryDate,
+    daysLeft,
+    message: `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining to return (valid until ${expiryDate.toLocaleDateString(
+      'en-IN',
+      { day: 'numeric', month: 'short' }
+    )})`,
+    hasExistingReturn: false,
+    isDelivered: true,
+  };
+}
 
 const PRODUCTS_STORAGE_KEY = 'nexora_db_products_v1';
 const ORDERS_STORAGE_KEY = 'nexora_db_orders_v1';
@@ -381,7 +505,7 @@ export const db = {
     paymentStatus?: 'pending' | 'verified' | 'failed'
   ): Promise<Order | null> {
     const orders = await this.getOrders();
-    const index = orders.findIndex(o => o.id === orderId);
+    const index = orders.findIndex(o => o.id === orderId || o.order_number === orderId);
     if (index === -1) return null;
 
     const currentOrder = orders[index];
@@ -391,6 +515,11 @@ export const db = {
       note: `Status updated to ${status}${courierData?.courier_name ? ` via ${courierData.courier_name}` : ''}`,
     };
 
+    const isNowDelivered = status === 'DELIVERED';
+    const deliveredAtTimestamp = isNowDelivered 
+      ? (currentOrder.delivered_at || new Date().toISOString()) 
+      : currentOrder.delivered_at;
+
     const updatedOrder: Order = {
       ...currentOrder,
       order_status: status,
@@ -399,14 +528,175 @@ export const db = {
       tracking_number: courierData?.tracking_number !== undefined ? courierData.tracking_number : currentOrder.tracking_number,
       tracking_url: courierData?.tracking_url !== undefined ? courierData.tracking_url : currentOrder.tracking_url,
       estimated_delivery: courierData?.estimated_delivery !== undefined ? courierData.estimated_delivery : currentOrder.estimated_delivery,
+      delivered_at: deliveredAtTimestamp,
       status_history: [...currentOrder.status_history, newHistoryItem],
     };
 
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('orders').update(updatedOrder).eq('id', orderId);
+        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
       } catch (e) {
         console.warn('Supabase updateOrder failed', e);
+      }
+    }
+
+    orders[index] = updatedOrder;
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    window.dispatchEvent(new Event('nexora_orders_updated'));
+    return updatedOrder;
+  },
+
+  async submitReturnRequest(
+    orderId: string,
+    returnData: Omit<ReturnRequest, 'request_id' | 'requested_at'>
+  ): Promise<Order | null> {
+    const orders = await this.getOrders();
+    const index = orders.findIndex(o => o.id === orderId || o.order_number === orderId);
+    if (index === -1) return null;
+
+    const currentOrder = orders[index];
+    const eligibility = getReturnEligibility(currentOrder);
+    if (!eligibility.isEligible && !eligibility.hasExistingReturn) {
+      throw new Error(eligibility.message || 'This order is not eligible for return under the 7-day policy.');
+    }
+
+    const fullReturnRequest: ReturnRequest = {
+      ...returnData,
+      id: `ret-${Date.now().toString(36)}`,
+      request_id: `ret-${Date.now().toString(36)}`,
+      status: 'REQUESTED',
+      requested_at: new Date().toISOString(),
+    };
+
+    const status: OrderStatus = 'RETURN_REQUESTED';
+    const newHistoryItem = {
+      status,
+      timestamp: new Date().toISOString(),
+      note: `Return/Replacement requested by customer (${returnData.return_type.toLowerCase() === 'replacement' ? 'Free Replacement' : 'Refund'}). Reason: ${returnData.reason}`,
+    };
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      order_status: status,
+      return_request: fullReturnRequest,
+      status_history: [...currentOrder.status_history, newHistoryItem],
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
+      } catch (e) {
+        console.warn('Supabase submitReturnRequest failed', e);
+      }
+    }
+
+    orders[index] = updatedOrder;
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    window.dispatchEvent(new Event('nexora_orders_updated'));
+    return updatedOrder;
+  },
+
+  async processAdminReturnAction(
+    orderId: string,
+    action: 'approve' | 'reject' | 'pickup' | 'refund' | 'replace',
+    data?: {
+      admin_notes?: string;
+      rejection_reason?: string;
+      pickup_date?: string;
+      pickup_scheduled_date?: string;
+      pickup_courier?: string;
+      pickup_tracking_number?: string;
+      refund_transaction_id?: string;
+      replacement_courier?: string;
+      replacement_tracking?: string;
+    }
+  ): Promise<Order | null> {
+    const orders = await this.getOrders();
+    const index = orders.findIndex(o => o.id === orderId || o.order_number === orderId);
+    if (index === -1) return null;
+
+    const currentOrder = orders[index];
+    let newStatus: OrderStatus = currentOrder.order_status;
+    let requestStatus: ReturnRequest['status'] = 'REQUESTED';
+    let note = '';
+
+    const scheduledDate = data?.pickup_scheduled_date || data?.pickup_date;
+
+    if (action === 'approve') {
+      newStatus = 'RETURN_APPROVED';
+      requestStatus = 'APPROVED';
+      note = `Return request approved by concierge.${scheduledDate ? ` Doorstep pickup scheduled on ${scheduledDate}.` : ''}`;
+    } else if (action === 'reject') {
+      newStatus = 'RETURN_REJECTED';
+      requestStatus = 'REJECTED';
+      note = `Return request declined by concierge. ${data?.rejection_reason || data?.admin_notes ? `Reason: ${data?.rejection_reason || data?.admin_notes}` : ''}`;
+    } else if (action === 'pickup') {
+      newStatus = 'RETURN_PICKED_UP';
+      requestStatus = 'PICKED_UP';
+      note = `Product picked up from customer doorstep via ${data?.pickup_courier || 'courier logistics'}. In inspection.`;
+    } else if (action === 'refund') {
+      newStatus = 'REFUNDED';
+      requestStatus = 'REFUNDED';
+      note = `Direct refund settled to customer account. ${data?.refund_transaction_id ? `Txn ID: ${data.refund_transaction_id}` : ''}`;
+    } else if (action === 'replace') {
+      newStatus = 'REPLACED';
+      requestStatus = 'REPLACED';
+      note = `Fresh replacement dispatched. ${data?.replacement_courier ? `Courier: ${data.replacement_courier}` : ''} ${data?.replacement_tracking ? `AWB: ${data.replacement_tracking}` : ''}`;
+    }
+
+    const updatedReturnRequest: ReturnRequest = currentOrder.return_request
+      ? {
+          ...currentOrder.return_request,
+          id: currentOrder.return_request.id || currentOrder.return_request.request_id || `ret-${Date.now().toString(36)}`,
+          status: requestStatus,
+          admin_decision_at: new Date().toISOString(),
+          admin_notes: data?.admin_notes !== undefined ? data.admin_notes : currentOrder.return_request.admin_notes,
+          rejection_reason: data?.rejection_reason !== undefined ? data.rejection_reason : currentOrder.return_request.rejection_reason,
+          pickup_date: scheduledDate !== undefined ? scheduledDate : currentOrder.return_request.pickup_date,
+          pickup_scheduled_date: scheduledDate !== undefined ? scheduledDate : currentOrder.return_request.pickup_scheduled_date,
+          pickup_courier: data?.pickup_courier !== undefined ? data.pickup_courier : currentOrder.return_request.pickup_courier,
+          pickup_tracking_number: data?.pickup_tracking_number !== undefined ? data.pickup_tracking_number : currentOrder.return_request.pickup_tracking_number,
+          refund_transaction_id: data?.refund_transaction_id !== undefined ? data.refund_transaction_id : currentOrder.return_request.refund_transaction_id,
+          replacement_courier: data?.replacement_courier !== undefined ? data.replacement_courier : currentOrder.return_request.replacement_courier,
+          replacement_tracking: data?.replacement_tracking !== undefined ? data.replacement_tracking : currentOrder.return_request.replacement_tracking,
+        }
+      : {
+          id: `ret-${Date.now().toString(36)}`,
+          request_id: `ret-${Date.now().toString(36)}`,
+          status: requestStatus,
+          return_type: 'replacement',
+          reason: 'Manual admin return action',
+          items: currentOrder.items.map(i => ({ product_id: i.product_id, product_name: i.product_name, quantity: i.quantity, price: i.price })),
+          requested_at: new Date().toISOString(),
+          admin_decision_at: new Date().toISOString(),
+          admin_notes: data?.admin_notes,
+          rejection_reason: data?.rejection_reason,
+          pickup_date: scheduledDate,
+          pickup_scheduled_date: scheduledDate,
+          pickup_courier: data?.pickup_courier,
+          refund_transaction_id: data?.refund_transaction_id,
+          replacement_courier: data?.replacement_courier,
+          replacement_tracking: data?.replacement_tracking,
+        };
+
+    const newHistoryItem = {
+      status: newStatus,
+      timestamp: new Date().toISOString(),
+      note,
+    };
+
+    const updatedOrder: Order = {
+      ...currentOrder,
+      order_status: newStatus,
+      return_request: updatedReturnRequest,
+      status_history: [...currentOrder.status_history, newHistoryItem],
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
+      } catch (e) {
+        console.warn('Supabase processAdminReturnAction failed', e);
       }
     }
 
