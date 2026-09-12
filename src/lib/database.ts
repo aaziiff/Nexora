@@ -341,23 +341,70 @@ export const db = {
     const deletedRaw = localStorage.getItem(DELETED_ORDERS_KEY);
     const deletedIds: string[] = deletedRaw ? JSON.parse(deletedRaw) : [];
 
+    initializeLocalDb();
+    const stored = localStorage.getItem(ORDERS_STORAGE_KEY);
+    const localOrders: Order[] = stored ? JSON.parse(stored) : [];
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
         if (!error && data) {
-          const validOrders = (data as Order[]).filter(o => 
+          const remoteOrders = (data as Order[]).filter(o => 
             !deletedIds.includes(o.id) && !deletedIds.includes(o.order_number)
           );
-          localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(validOrders));
-          return validOrders;
+
+          // Intelligent merge: If local order has more status history entries or newer timestamp, preserve local status
+          const merged: Order[] = remoteOrders.map(remote => {
+            const local = localOrders.find(l => l.id === remote.id || l.order_number === remote.order_number);
+            if (!local) return remote;
+
+            const localHistLen = local.status_history?.length || 0;
+            const remoteHistLen = remote.status_history?.length || 0;
+
+            const lastLocalTime = local.status_history?.[localHistLen - 1]?.timestamp 
+              ? new Date(local.status_history[localHistLen - 1].timestamp).getTime() 
+              : 0;
+            const lastRemoteTime = remote.status_history?.[remoteHistLen - 1]?.timestamp 
+              ? new Date(remote.status_history[remoteHistLen - 1].timestamp).getTime() 
+              : 0;
+
+            // If local status change was made more recently, keep local status & details
+            if (localHistLen > remoteHistLen || lastLocalTime > lastRemoteTime) {
+              return {
+                ...remote,
+                ...local,
+                order_status: local.order_status,
+                delivered_at: local.delivered_at || remote.delivered_at,
+                return_request: local.return_request || remote.return_request,
+                status_history: local.status_history || remote.status_history,
+              };
+            }
+
+            return {
+              ...local,
+              ...remote,
+              delivered_at: remote.delivered_at || local.delivered_at,
+              return_request: remote.return_request || local.return_request,
+            };
+          });
+
+          // Include any local orders that haven't synced to Supabase yet
+          for (const l of localOrders) {
+            if (!merged.some(m => m.id === l.id || m.order_number === l.order_number)) {
+              if (!deletedIds.includes(l.id) && !deletedIds.includes(l.order_number)) {
+                merged.unshift(l);
+              }
+            }
+          }
+
+          localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(merged));
+          return merged;
         }
       } catch (e) {
         console.warn('Supabase getOrders failed', e);
       }
     }
-    initializeLocalDb();
-    const stored = localStorage.getItem(ORDERS_STORAGE_KEY);
-    const localOrders: Order[] = stored ? JSON.parse(stored) : [];
+
     return localOrders.filter(o => 
       !deletedIds.includes(o.id) && !deletedIds.includes(o.order_number)
     );
@@ -460,12 +507,12 @@ export const db = {
         }
       }
       localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(allProducts));
-      window.dispatchEvent(new Event('nexora_products_updated'));
     } catch (e) {
-      console.warn('Failed to update product stock on order creation:', e);
+      console.warn('Stock update failed:', e);
     }
 
     window.dispatchEvent(new Event('nexora_orders_updated'));
+    window.dispatchEvent(new Event('nexora_products_updated'));
     return savedOrder;
   },
 
@@ -532,16 +579,42 @@ export const db = {
       status_history: [...currentOrder.status_history, newHistoryItem],
     };
 
+    // Save locally immediately to prevent race conditions
+    orders[index] = updatedOrder;
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
+        const cleanPayload = Object.fromEntries(
+          Object.entries(updatedOrder).filter(([_, v]) => v !== undefined)
+        );
+        const res = await supabase
+          .from('orders')
+          .update(cleanPayload)
+          .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+
+        if (res.error) {
+          console.warn('Supabase update full payload error, retrying fallback:', res.error);
+          const fallbackPayload: Record<string, any> = {
+            order_status: status,
+            payment_status: paymentStatus || currentOrder.payment_status,
+            status_history: updatedOrder.status_history,
+          };
+          if (courierData?.courier_name !== undefined) fallbackPayload.courier_name = courierData.courier_name;
+          if (courierData?.tracking_number !== undefined) fallbackPayload.tracking_number = courierData.tracking_number;
+          if (courierData?.tracking_url !== undefined) fallbackPayload.tracking_url = courierData.tracking_url;
+          if (courierData?.estimated_delivery !== undefined) fallbackPayload.estimated_delivery = courierData.estimated_delivery;
+
+          await supabase
+            .from('orders')
+            .update(fallbackPayload)
+            .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+        }
       } catch (e) {
-        console.warn('Supabase updateOrder failed', e);
+        console.warn('Supabase updateOrder network error:', e);
       }
     }
 
-    orders[index] = updatedOrder;
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
     window.dispatchEvent(new Event('nexora_orders_updated'));
     return updatedOrder;
   },
@@ -582,16 +655,34 @@ export const db = {
       status_history: [...currentOrder.status_history, newHistoryItem],
     };
 
+    orders[index] = updatedOrder;
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
+        const cleanPayload = Object.fromEntries(
+          Object.entries(updatedOrder).filter(([_, v]) => v !== undefined)
+        );
+        const res = await supabase
+          .from('orders')
+          .update(cleanPayload)
+          .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+
+        if (res.error) {
+          console.warn('Supabase submitReturnRequest error, attempting fallback update:', res.error);
+          await supabase
+            .from('orders')
+            .update({
+              order_status: status,
+              status_history: updatedOrder.status_history,
+            })
+            .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+        }
       } catch (e) {
         console.warn('Supabase submitReturnRequest failed', e);
       }
     }
 
-    orders[index] = updatedOrder;
-    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
     window.dispatchEvent(new Event('nexora_orders_updated'));
     return updatedOrder;
   },
@@ -692,9 +783,29 @@ export const db = {
       status_history: [...currentOrder.status_history, newHistoryItem],
     };
 
+    orders[index] = updatedOrder;
+    localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
     if (isSupabaseConfigured && supabase) {
       try {
-        await supabase.from('orders').update(updatedOrder).eq('id', currentOrder.id);
+        const cleanPayload = Object.fromEntries(
+          Object.entries(updatedOrder).filter(([_, v]) => v !== undefined)
+        );
+        const res = await supabase
+          .from('orders')
+          .update(cleanPayload)
+          .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+
+        if (res.error) {
+          console.warn('Supabase processAdminReturnAction error, fallback update:', res.error);
+          await supabase
+            .from('orders')
+            .update({
+              order_status: newStatus,
+              status_history: updatedOrder.status_history,
+            })
+            .or(`id.eq.${currentOrder.id},order_number.eq.${currentOrder.order_number}`);
+        }
       } catch (e) {
         console.warn('Supabase processAdminReturnAction failed', e);
       }

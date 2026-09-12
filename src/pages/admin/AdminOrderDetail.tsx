@@ -84,16 +84,19 @@ export const AdminOrderDetail: React.FC = () => {
 
   const handleVerifyUpi = async () => {
     if (!order) return;
-    await db.updateOrderStatus(
+    const targetStatus = order.order_status === 'ORDER PLACED' ? 'CONFIRMED' : order.order_status;
+    const updated = await db.updateOrderStatus(
       order.id,
-      order.order_status === 'ORDER PLACED' ? 'CONFIRMED' : order.order_status,
+      targetStatus,
       undefined,
       'verified'
     );
-    setPaymentStatus('verified');
-    if (order.order_status === 'ORDER PLACED') setCurrentStatus('CONFIRMED');
+    if (updated) {
+      setOrder(updated);
+      setPaymentStatus(updated.payment_status);
+      setCurrentStatus(updated.order_status);
+    }
     showToast('UPI Payment marked as VERIFIED and order confirmed.', 'success');
-    loadOrder();
   };
 
   const handleSaveFulfillment = async (e: React.FormEvent) => {
@@ -101,21 +104,65 @@ export const AdminOrderDetail: React.FC = () => {
     if (!order) return;
     setIsSaving(true);
 
-    await db.updateOrderStatus(
-      order.id,
-      currentStatus,
-      {
-        courier_name: courierName.trim() || undefined,
-        tracking_number: trackingNumber.trim() || undefined,
-        tracking_url: trackingUrl.trim() || undefined,
-        estimated_delivery: estimatedDelivery.trim() || undefined,
-      },
-      paymentStatus
-    );
+    try {
+      const updated = await db.updateOrderStatus(
+        order.id,
+        currentStatus,
+        {
+          courier_name: courierName.trim() || undefined,
+          tracking_number: trackingNumber.trim() || undefined,
+          tracking_url: trackingUrl.trim() || undefined,
+          estimated_delivery: estimatedDelivery.trim() || undefined,
+        },
+        paymentStatus
+      );
 
-    setIsSaving(false);
-    showToast('Order fulfillment details & timeline updated successfully.', 'success');
-    loadOrder();
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+        setPaymentStatus(updated.payment_status);
+        setCourierName(updated.courier_name || '');
+        setTrackingNumber(updated.tracking_number || '');
+        setTrackingUrl(updated.tracking_url || '');
+        setEstimatedDelivery(updated.estimated_delivery || '2-4 business days');
+      }
+      showToast(`Order status updated to ${currentStatus}.`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save order updates', 'error');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleQuickStatusChange = async (newStatus: OrderStatus) => {
+    if (!order) return;
+    setIsSaving(true);
+    setCurrentStatus(newStatus);
+
+    try {
+      const updated = await db.updateOrderStatus(
+        order.id,
+        newStatus,
+        {
+          courier_name: courierName.trim() || undefined,
+          tracking_number: trackingNumber.trim() || undefined,
+          tracking_url: trackingUrl.trim() || undefined,
+          estimated_delivery: estimatedDelivery.trim() || undefined,
+        },
+        paymentStatus
+      );
+
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+        setPaymentStatus(updated.payment_status);
+      }
+      showToast(`Status successfully changed to ${newStatus}.`, 'success');
+    } catch (err: any) {
+      showToast('Failed to update status', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleApproveReturn = async (e: React.FormEvent) => {
@@ -123,13 +170,16 @@ export const AdminOrderDetail: React.FC = () => {
     if (!order) return;
     setIsProcessingReturn(true);
     try {
-      await db.processAdminReturnAction(order.id, 'approve', {
+      const updated = await db.processAdminReturnAction(order.id, 'approve', {
         pickup_date: pickupDate || new Date(Date.now() + 86400000 * 2).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }),
         pickup_courier: pickupCourier,
       });
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+      }
       showToast('Return request approved. Doorstep pickup scheduled.', 'success');
       setShowApproveModal(false);
-      loadOrder();
     } catch (err: any) {
       showToast(err.message || 'Failed to approve return', 'error');
     } finally {
@@ -146,12 +196,15 @@ export const AdminOrderDetail: React.FC = () => {
     }
     setIsProcessingReturn(true);
     try {
-      await db.processAdminReturnAction(order.id, 'reject', {
+      const updated = await db.processAdminReturnAction(order.id, 'reject', {
         rejection_reason: rejectionReason.trim(),
       });
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+      }
       showToast('Return request declined. Customer notified.', 'info');
       setShowRejectModal(false);
-      loadOrder();
     } catch (err: any) {
       showToast(err.message || 'Failed to decline return', 'error');
     } finally {
@@ -163,9 +216,12 @@ export const AdminOrderDetail: React.FC = () => {
     if (!order) return;
     setIsProcessingReturn(true);
     try {
-      await db.processAdminReturnAction(order.id, 'pickup');
+      const updated = await db.processAdminReturnAction(order.id, 'pickup');
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+      }
       showToast('Package marked as picked up from customer doorstep.', 'success');
-      loadOrder();
     } catch (err: any) {
       showToast(err.message || 'Failed to update pickup status', 'error');
     } finally {
@@ -178,12 +234,15 @@ export const AdminOrderDetail: React.FC = () => {
     if (!order) return;
     setIsProcessingReturn(true);
     try {
-      await db.processAdminReturnAction(order.id, 'refund', {
+      const updated = await db.processAdminReturnAction(order.id, 'refund', {
         refund_transaction_id: refundTxnId.trim() || undefined,
       });
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+      }
       showToast('Direct refund settled and recorded successfully.', 'success');
       setShowRefundModal(false);
-      loadOrder();
     } catch (err: any) {
       showToast(err.message || 'Failed to complete refund', 'error');
     } finally {
@@ -196,13 +255,16 @@ export const AdminOrderDetail: React.FC = () => {
     if (!order) return;
     setIsProcessingReturn(true);
     try {
-      await db.processAdminReturnAction(order.id, 'replace', {
+      const updated = await db.processAdminReturnAction(order.id, 'replace', {
         replacement_courier: replacementCourier.trim() || undefined,
         replacement_tracking: replacementTracking.trim() || undefined,
       });
+      if (updated) {
+        setOrder(updated);
+        setCurrentStatus(updated.order_status);
+      }
       showToast('Fresh replacement unit marked as dispatched.', 'success');
       setShowReplacementModal(false);
-      loadOrder();
     } catch (err: any) {
       showToast(err.message || 'Failed to dispatch replacement', 'error');
     } finally {
@@ -755,9 +817,44 @@ export const AdminOrderDetail: React.FC = () => {
             </h3>
 
             <div>
-              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
-                Order Timeline Status
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block">
+                  Order Timeline Status
+                </label>
+                <span
+                  className={`text-[10px] uppercase font-bold px-2.5 py-0.5 rounded ${
+                    order.order_status === 'DELIVERED'
+                      ? 'bg-sage-800 text-ivory-100'
+                      : order.order_status === 'CANCELLED'
+                      ? 'bg-rose-100 text-rose-800'
+                      : order.order_status.startsWith('RETURN')
+                      ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                      : 'bg-stone/30 text-charcoal-800'
+                  }`}
+                >
+                  Current: {order.order_status.replace(/_/g, ' ')}
+                </span>
+              </div>
+
+              {/* Quick Status Buttons */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-3">
+                {(['PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'] as OrderStatus[]).map((st) => (
+                  <button
+                    key={st}
+                    type="button"
+                    onClick={() => handleQuickStatusChange(st)}
+                    disabled={isSaving}
+                    className={`py-1.5 px-2 rounded text-[10px] uppercase font-bold tracking-wider transition-all border ${
+                      order.order_status === st
+                        ? 'bg-charcoal-900 text-ivory-100 border-charcoal-900 shadow-sm'
+                        : 'bg-ivory-50 hover:bg-stone/20 text-charcoal-700 border-stone/40'
+                    }`}
+                  >
+                    {st === 'DELIVERED' ? '✓ Delivered' : st}
+                  </button>
+                ))}
+              </div>
+
               <select
                 value={currentStatus}
                 onChange={(e) => setCurrentStatus(e.target.value as OrderStatus)}
