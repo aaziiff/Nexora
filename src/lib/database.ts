@@ -230,6 +230,21 @@ if (typeof window !== 'undefined') {
     }
   });
 
+  // Re-sync active data when user switches back to this tab or window
+  window.addEventListener('focus', () => {
+    window.dispatchEvent(new Event('nexora_products_updated'));
+    window.dispatchEvent(new Event('nexora_orders_updated'));
+    window.dispatchEvent(new Event('nexora_settings_updated'));
+  });
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      window.dispatchEvent(new Event('nexora_products_updated'));
+      window.dispatchEvent(new Event('nexora_orders_updated'));
+      window.dispatchEvent(new Event('nexora_settings_updated'));
+    }
+  });
+
   if (isSupabaseConfigured && supabase) {
     try {
       supabase

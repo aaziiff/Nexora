@@ -11,6 +11,7 @@ export const CartDrawer: React.FC = () => {
     setIsCartOpen,
     removeFromCart,
     updateQuantity,
+    clearCart,
     subtotal,
     totalCount,
     freeShippingThreshold,
@@ -61,13 +62,27 @@ export const CartDrawer: React.FC = () => {
                       {totalCount}
                     </span>
                   </div>
-                  <button
-                    onClick={() => setIsCartOpen(false)}
-                    className="p-1.5 text-charcoal-500 hover:text-charcoal-950 hover:bg-stone/20 rounded-full transition-colors"
-                    aria-label="Close cart"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-3">
+                    {items.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm('Clear all items from your bag?')) {
+                            clearCart();
+                          }
+                        }}
+                        className="text-[10px] text-rose-600 hover:text-rose-800 uppercase tracking-luxury font-semibold px-2 py-1 rounded hover:bg-rose-50 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setIsCartOpen(false)}
+                      className="p-1.5 text-charcoal-500 hover:text-charcoal-950 hover:bg-stone/20 rounded-full transition-colors"
+                      aria-label="Close cart"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Free Shipping Badge */}

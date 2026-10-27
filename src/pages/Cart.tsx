@@ -8,6 +8,7 @@ export const Cart: React.FC = () => {
     items,
     removeFromCart,
     updateQuantity,
+    clearCart,
     subtotal,
     freeShippingThreshold,
     freeShippingRemaining,
@@ -144,6 +145,17 @@ export const Cart: React.FC = () => {
             >
               ← Continue Shopping
             </Link>
+            <button
+              onClick={() => {
+                if (window.confirm('Are you sure you want to remove all items from your bag?')) {
+                  clearCart();
+                }
+              }}
+              className="text-xs uppercase tracking-luxury font-semibold text-rose-700 hover:text-rose-900 transition-colors flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-rose-50"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Clear Bag</span>
+            </button>
           </div>
         </div>
 

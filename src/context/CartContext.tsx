@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CartItem, Product } from '../types';
+import { db } from '../lib/database';
 
 interface CartContextType {
   items: CartItem[];
@@ -43,6 +44,63 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [items]);
 
+  // Synchronize cart across multiple open browser tabs/windows
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === CART_STORAGE_KEY) {
+        try {
+          const updatedItems = e.newValue ? JSON.parse(e.newValue) : [];
+          setItems(updatedItems);
+        } catch {
+          setItems([]);
+        }
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Validate cart items against active catalog products:
+  // If a product was deleted by the admin, remove it from the cart automatically.
+  useEffect(() => {
+    let isMounted = true;
+    const validateCartProducts = async () => {
+      try {
+        const activeProducts = await db.getProducts();
+        if (!isMounted || !activeProducts) return;
+        const activeIds = new Set(activeProducts.map((p) => p.id));
+        setItems((prevItems) => {
+          const validItems = prevItems
+            .filter((item) => activeIds.has(item.product.id))
+            .map((item) => {
+              const latestProduct = activeProducts.find((p) => p.id === item.product.id);
+              return latestProduct ? { ...item, product: latestProduct } : item;
+            });
+
+          if (validItems.length !== prevItems.length) {
+            try {
+              localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validItems));
+            } catch (e) {
+              console.error('Failed to sync cart localStorage', e);
+            }
+            return validItems;
+          }
+          return prevItems;
+        });
+      } catch (err) {
+        console.warn('Cart product validation skipped:', err);
+      }
+    };
+
+    validateCartProducts();
+    window.addEventListener('nexora_products_updated', validateCartProducts);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('nexora_products_updated', validateCartProducts);
+    };
+  }, []);
+
   const addToCart = (product: Product, quantity = 1) => {
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex((item) => item.product.id === product.id);
@@ -79,6 +137,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearCart = () => {
     setItems([]);
+    try {
+      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify([]));
+    } catch (e) {
+      console.error('Failed to clear cart from localStorage', e);
+    }
   };
 
   const totalCount = items.reduce((sum, item) => sum + item.quantity, 0);
