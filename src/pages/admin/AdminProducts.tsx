@@ -114,8 +114,20 @@ export const AdminProducts: React.FC = () => {
                       {p.category}
                     </td>
 
-                    <td className="py-3.5 px-4 font-semibold text-charcoal-900">
-                      ₹{p.price.toLocaleString('en-IN')}
+                    <td className="py-3.5 px-4">
+                      <div className="font-semibold text-charcoal-900">
+                        ₹{p.price.toLocaleString('en-IN')}
+                      </div>
+                      {p.original_price && p.original_price > p.price && (
+                        <div className="flex items-center gap-1.5 text-[10px] text-charcoal-400 mt-0.5">
+                          <span className="line-through">₹{p.original_price.toLocaleString('en-IN')}</span>
+                          {p.discount && (
+                            <span className="text-sage-800 font-semibold bg-sage-100 px-1.5 py-0.5 rounded">
+                              {p.discount}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </td>
 
                     <td className="py-3.5 px-4">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Save, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Save, Plus, Trash2, Image as ImageIcon, Percent, CheckCircle, AlertCircle } from 'lucide-react';
 import { Product, ProductCategory } from '../../types';
 import { db } from '../../lib/database';
 import { useToast } from '../../context/ToastContext';
@@ -16,9 +16,9 @@ export const AdminProductForm: React.FC = () => {
   const [slug, setSlug] = useState('');
   const [tagline, setTagline] = useState('');
   const [category, setCategory] = useState<ProductCategory>('home');
-  const [price, setPrice] = useState<number>(999);
-  const [originalPrice, setOriginalPrice] = useState<number | undefined>(1299);
-  const [discount, setDiscount] = useState('23% OFF');
+  const [price, setPrice] = useState<number | ''>('');
+  const [originalPrice, setOriginalPrice] = useState<number | '' | undefined>('');
+  const [discount, setDiscount] = useState('');
   const [description, setDescription] = useState('');
   const [story, setStory] = useState('');
   const [images, setImages] = useState<string[]>([
@@ -55,7 +55,7 @@ export const AdminProductForm: React.FC = () => {
           setTagline(found.tagline);
           setCategory(found.category);
           setPrice(found.price);
-          setOriginalPrice(found.original_price);
+          setOriginalPrice(found.original_price ?? '');
           setDiscount(found.discount || '');
           setDescription(found.description);
           setStory(found.story || '');
@@ -72,6 +72,55 @@ export const AdminProductForm: React.FC = () => {
       });
     }
   }, [id]);
+
+  // Helper to calculate discount percentage
+  const calculateDiscountBadge = (
+    orig: number | '' | undefined,
+    sell: number | '' | undefined
+  ): string => {
+    const origNum = Number(orig);
+    const sellNum = Number(sell);
+    if (origNum > 0 && sellNum > 0 && origNum > sellNum) {
+      const pct = Math.round(((origNum - sellNum) / origNum) * 100);
+      return pct > 0 ? `${pct}% OFF` : '';
+    }
+    return '';
+  };
+
+  const handleOriginalPriceChange = (val: string) => {
+    const newOrig = val === '' ? '' : Number(val);
+    setOriginalPrice(newOrig);
+
+    // Auto-calculate percentage offer when original price is added/changed
+    if (newOrig !== '' && price !== '') {
+      const calculated = calculateDiscountBadge(newOrig, price);
+      setDiscount(calculated);
+    } else if (newOrig === '') {
+      setDiscount('');
+    }
+  };
+
+  const handlePriceChange = (val: string) => {
+    const newPrice = val === '' ? '' : Number(val);
+    setPrice(newPrice);
+
+    // Auto-calculate percentage offer when discount price is added/changed
+    if (originalPrice !== '' && originalPrice !== undefined && newPrice !== '') {
+      const calculated = calculateDiscountBadge(originalPrice, newPrice);
+      setDiscount(calculated);
+    } else if (newPrice === '') {
+      setDiscount('');
+    }
+  };
+
+  // Real-time calculation helpers for UI display
+  const origNum = Number(originalPrice);
+  const priceNum = Number(price);
+  const hasValidDiscount = origNum > 0 && priceNum > 0 && origNum > priceNum;
+  const calculatedPercentage = hasValidDiscount
+    ? Math.round(((origNum - priceNum) / origNum) * 100)
+    : 0;
+  const savingsAmount = hasValidDiscount ? origNum - priceNum : 0;
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -120,7 +169,7 @@ export const AdminProductForm: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!name || !slug || !price || !description) {
+    if (!name || !slug || price === '' || Number(price) <= 0 || !description) {
       showToast('Please fill in all required fields (Name, Slug, Price, Description)', 'error');
       return;
     }
@@ -138,7 +187,10 @@ export const AdminProductForm: React.FC = () => {
       category,
       category_name: category.toUpperCase(),
       price: Number(price),
-      original_price: originalPrice ? Number(originalPrice) : undefined,
+      original_price:
+        originalPrice !== '' && originalPrice !== undefined
+          ? Number(originalPrice)
+          : undefined,
       discount: discount.trim() || undefined,
       description: description.trim(),
       story: story.trim() || undefined,
@@ -186,7 +238,7 @@ export const AdminProductForm: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Core Product Info */}
-        <div className="bg-ivory-100 p-6 sm:p-8 rounded-xl border border-stone/30 shadow-sm space-y-4">
+        <div className="bg-ivory-100 p-6 sm:p-8 rounded-xl border border-stone/30 shadow-sm space-y-5">
           <h3 className="font-serif text-xl font-normal text-charcoal-950 pb-2 border-b border-stone/20">
             1. Core Information
           </h3>
@@ -202,7 +254,7 @@ export const AdminProductForm: React.FC = () => {
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="e.g. Diatomite Fast-Dry Stone Caddy"
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
+                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 focus:border-charcoal-900 focus:outline-none"
               />
             </div>
 
@@ -216,11 +268,11 @@ export const AdminProductForm: React.FC = () => {
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
                 placeholder="e.g. diatomite-quick-dry-stone-tray"
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 font-mono"
+                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 font-mono focus:border-charcoal-900 focus:outline-none"
               />
             </div>
 
-            <div className="sm:col-span-2">
+            <div>
               <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
                 Tagline / Short Descriptor
               </label>
@@ -229,7 +281,7 @@ export const AdminProductForm: React.FC = () => {
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}
                 placeholder="e.g. Instant-absorbing natural stone counter dock"
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
+                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 focus:border-charcoal-900 focus:outline-none"
               />
             </div>
 
@@ -240,7 +292,7 @@ export const AdminProductForm: React.FC = () => {
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as ProductCategory)}
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 capitalize"
+                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 capitalize focus:border-charcoal-900 focus:outline-none"
               >
                 <option value="home">Home</option>
                 <option value="care">Care</option>
@@ -249,43 +301,140 @@ export const AdminProductForm: React.FC = () => {
                 <option value="everyday">Everyday</option>
               </select>
             </div>
+          </div>
 
-            <div>
-              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
-                Selling Price (₹) *
-              </label>
-              <input
-                type="number"
-                required
-                value={price}
-                onChange={(e) => setPrice(Number(e.target.value))}
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
-              />
+          {/* Pricing & Percentage Offer Auto-Calculation */}
+          <div className="pt-5 border-t border-stone/20 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <span className="text-xs uppercase tracking-luxury text-charcoal-900 font-semibold block">
+                  Pricing & Offers
+                </span>
+                <p className="text-[11px] text-charcoal-500 font-sans">
+                  Enter original price and discount price — percentage offer will automatically calculate.
+                </p>
+              </div>
+              {hasValidDiscount && (
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sage-100 border border-sage-200 text-sage-800 text-[11px] font-medium w-fit">
+                  <Percent className="w-3 h-3 text-sage-700" />
+                  <span>Saves ₹{savingsAmount.toLocaleString('en-IN')} ({calculatedPercentage}% OFF)</span>
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
-                Original Price (₹) (Optional)
-              </label>
-              <input
-                type="number"
-                value={originalPrice || ''}
-                onChange={(e) => setOriginalPrice(e.target.value ? Number(e.target.value) : undefined)}
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
-              />
-            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Original Price */}
+              <div>
+                <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
+                  Original Price (₹) <span className="text-charcoal-400 font-normal lowercase">(mrp / regular)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-charcoal-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={originalPrice ?? ''}
+                    onChange={(e) => handleOriginalPriceChange(e.target.value)}
+                    placeholder="e.g. 1299"
+                    className="w-full pl-7 pr-3 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 focus:border-charcoal-900 focus:outline-none"
+                  />
+                </div>
+                <span className="text-[10px] text-charcoal-400 mt-1 block">
+                  Original strikethrough price
+                </span>
+              </div>
 
-            <div>
-              <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
-                Discount Badge Text
-              </label>
-              <input
-                type="text"
-                value={discount}
-                onChange={(e) => setDiscount(e.target.value)}
-                placeholder="e.g. 25% OFF"
-                className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900"
-              />
+              {/* Discount / Selling Price */}
+              <div>
+                <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium block mb-1">
+                  Discount Price (₹) * <span className="text-charcoal-400 font-normal lowercase">(final selling)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2.5 text-xs text-charcoal-400">₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    required
+                    value={price ?? ''}
+                    onChange={(e) => handlePriceChange(e.target.value)}
+                    placeholder="e.g. 999"
+                    className="w-full pl-7 pr-3 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 focus:border-charcoal-900 focus:outline-none"
+                  />
+                </div>
+                <span className="text-[10px] text-charcoal-400 mt-1 block">
+                  Final discounted amount charged
+                </span>
+              </div>
+
+              {/* Percentage Offer Section */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] uppercase tracking-luxury text-charcoal-700 font-medium">
+                    Percentage Offer
+                  </label>
+                  {hasValidDiscount && (
+                    <span className="text-[10px] text-sage-800 font-semibold bg-sage-100 px-1.5 py-0.5 rounded">
+                      {calculatedPercentage}%
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={discount}
+                    onChange={(e) => setDiscount(e.target.value)}
+                    placeholder="e.g. 23% OFF"
+                    className="w-full px-4 py-2.5 bg-ivory-50 border border-stone/60 rounded text-xs text-charcoal-900 focus:border-charcoal-900 focus:outline-none"
+                  />
+                </div>
+                <div className="mt-1">
+                  {hasValidDiscount ? (
+                    <div className="flex items-center justify-between gap-1 text-[11px]">
+                      <span className="text-sage-800 font-medium flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3 text-sage-700 shrink-0" />
+                        Auto-calculated
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setDiscount(`${calculatedPercentage}% OFF`)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                            discount === `${calculatedPercentage}% OFF`
+                              ? 'bg-sage-800 text-ivory-100 font-semibold'
+                              : 'bg-stone/20 text-charcoal-600 hover:bg-stone/30'
+                          }`}
+                          title="Format as % OFF"
+                        >
+                          {calculatedPercentage}% OFF
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDiscount(`${calculatedPercentage}%`)}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                            discount === `${calculatedPercentage}%`
+                              ? 'bg-sage-800 text-ivory-100 font-semibold'
+                              : 'bg-stone/20 text-charcoal-600 hover:bg-stone/30'
+                          }`}
+                          title="Format as percentage only"
+                        >
+                          {calculatedPercentage}%
+                        </button>
+                      </div>
+                    </div>
+                  ) : origNum > 0 && priceNum > 0 && priceNum >= origNum ? (
+                    <span className="text-[10px] text-amber-700 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3 shrink-0" />
+                      Original price should be higher than discount price
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-charcoal-400">
+                      Calculates automatically when prices are set
+                    </span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>
